@@ -19,16 +19,28 @@ pipeline {
         sh 'cd java-maven-sonar-argocd-helm-k8s/spring-boot-app && mvn clean package'
       }
     }
-    stage('Static Code Analysis') {
-      environment {
-        SONAR_URL = "http://54.80.154.155:9000"
-      }
-      steps {
-        withCredentials([string(credentialsId: 'Sonarcube', variable: 'SONAR_AUTH_TOKEN')]) {
-          sh 'cd java-maven-sonar-argocd-helm-k8s/spring-boot-app && mvn sonar:sonar -Dsonar.login=$SONAR_AUTH_TOKEN -Dsonar.host.url=${SONAR_URL}'
-        }
-      }
+stage('Static Code Analysis') {
+  environment {
+    SONAR_URL = "http://54.80.154.155:9000"
+  }
+  steps {
+    withCredentials([string(credentialsId: 'Sonarcube', variable: 'SONAR_AUTH_TOKEN')]) {
+      sh '''
+        set -e
+        cd java-maven-sonar-argocd-helm-k8s/spring-boot-app
+
+        # build classes for analysis
+        mvn -B -DskipTests clean package
+
+        # run sonar with a stable plugin version (avoids the plexus/class-realm crash)
+        mvn -B -U org.sonarsource.scanner.maven:sonar-maven-plugin:3.10.0.2594:sonar \
+           -Dsonar.host.url=${SONAR_URL} \
+           -Dsonar.login=$SONAR_AUTH_TOKEN
+      '''
     }
+  }
+}
+    
     stage('Build and Push Docker Image') {
       environment {
         DOCKER_IMAGE = "padamdurgababu7/ultimate-cicd:${BUILD_NUMBER}"
